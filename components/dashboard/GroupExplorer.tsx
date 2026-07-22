@@ -4,14 +4,14 @@ function courseName(name: string) {
   return name.replace(/^\d+\s*\|\s*/, "");
 }
 
-export function GroupExplorer({ groupField, groups }: { groupField: GroupField; groups: GroupMetric[] }) {
+export function GroupExplorer({ groupField, groups, context = "" }: { groupField: GroupField; groups: GroupMetric[]; context?: string }) {
   if (!groups.length) {
-    return <div className="panel emptyState">Load live SkyPrep data to inspect {groupField} results.</div>;
+    return <div className="panel emptyState">No {groupField} results match the selected filters.</div>;
   }
 
   return <div className="panel groupExplorer">
     <div className="explorerHeader">
-      <strong>{groups.length.toLocaleString()} {groupField} {groups.length === 1 ? "group" : "groups"}</strong>
+      <strong>{groups.length.toLocaleString()} {groupField} {groups.length === 1 ? "group" : "groups"}{context}</strong>
       <span>Each row shows enrollment, outcomes, and the seven-course progress pattern for that group.</span>
     </div>
     <div className="groupCards">
@@ -55,4 +55,3 @@ export function GroupExplorer({ groupField, groups }: { groupField: GroupField; 
     </div>
   </div>;
 }
-

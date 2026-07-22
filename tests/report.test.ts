@@ -38,6 +38,39 @@ test("aggregateRows returns report-safe counts without learner records", () => {
   assert.doesNotMatch(JSON.stringify(snapshot), /learner@example\.org|Private Learner/);
 });
 
+test("aggregateRows builds hierarchy comparisons in region-to-diocese-to-council-to-conference order", () => {
+  const snapshot = aggregateRows([
+    row({ Conference: "Holy Family - Davidsonville", Diocese: "", Council: "", Region: "", [FOUNDATION[0]]: "Passed" }),
+    row({ Conference: "St. Elizabeth - Rockville", Diocese: "", Council: "", Region: "", [FOUNDATION[0]]: "Passed" })
+  ], [
+    {
+      conference: "Holy Family - Davidsonville",
+      region: "Mid Atlantic",
+      diocese: "Archdiocese of Baltimore",
+      council: "District Council of Baltimore"
+    },
+    {
+      conference: "St. Elizabeth - Rockville",
+      region: "Mid Atlantic",
+      diocese: "Archdiocese of Washington",
+      council: "District Council of Montgomery County"
+    }
+  ]);
+
+  assert.deepEqual(
+    snapshot.hierarchyFilters.Diocese["Mid Atlantic"].map(group => group.name),
+    ["Archdiocese of Baltimore", "Archdiocese of Washington"]
+  );
+  assert.deepEqual(
+    snapshot.hierarchyFilters.Council["Archdiocese of Baltimore"].map(group => group.name),
+    ["District Council of Baltimore"]
+  );
+  assert.deepEqual(
+    snapshot.hierarchyFilters.Conference["District Council of Baltimore"].map(group => group.name),
+    ["Holy Family - Davidsonville"]
+  );
+});
+
 test("parseSkyPrepCsv handles quoted fields and BOM headers", () => {
   const rows = parseSkyPrepCsv('\uFEFFName,Notes\n"Smith, Jane","Line one\nLine two"\n');
   assert.equal(rows[0].Name, "Smith, Jane");
@@ -81,4 +114,3 @@ test("dashboard service helpers calculate changes and source warnings", () => {
   );
   assert.equal(isReportStale("2026-07-14T00:00:00Z", new Date("2026-07-17T01:00:00Z")), true);
 });
-

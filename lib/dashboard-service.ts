@@ -1,4 +1,6 @@
-import { aggregateRows, type DashboardReport, type Metrics, type Snapshot } from "./report";
+import { readFileSync } from "fs";
+import { join } from "path";
+import { aggregateRows, type DashboardReport, type HierarchyRecord, type Metrics, type Snapshot } from "./report";
 import { getSavedReportSnapshot } from "./skyprep";
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -6,6 +8,14 @@ const STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 const PAIRING_WARNING_MS = 6 * 60 * 60 * 1000;
 
 type RawSnapshot = Awaited<ReturnType<typeof getSavedReportSnapshot>>;
+
+function loadHierarchyRecords(): HierarchyRecord[] {
+  const file = readFileSync(join(process.cwd(), "conference-data.json"), "utf8");
+  const payload = JSON.parse(file) as { records?: HierarchyRecord[] };
+  return payload.records || [];
+}
+
+const hierarchyRecords = loadHierarchyRecords();
 
 let cached: { report: DashboardReport; expiresAt: number } | null = null;
 let pending: Promise<DashboardReport> | null = null;
@@ -44,8 +54,8 @@ export function isReportStale(reportCreatedAt: string, now = new Date()) {
 }
 
 function buildReport(currentRaw: NonNullable<RawSnapshot>, previousRaw: RawSnapshot): DashboardReport {
-  const current = aggregateRows(currentRaw.rows);
-  const previous: Snapshot | null = previousRaw ? aggregateRows(previousRaw.rows) : null;
+  const current = aggregateRows(currentRaw.rows, hierarchyRecords);
+  const previous: Snapshot | null = previousRaw ? aggregateRows(previousRaw.rows, hierarchyRecords) : null;
   const reportCreatedAt = newestIso(
     currentRaw.meta.usersReportCreatedAt,
     currentRaw.meta.coursesReportCreatedAt,
@@ -96,4 +106,3 @@ export async function getDashboardReport(force = false) {
 
   return pending;
 }
-

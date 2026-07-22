@@ -11,7 +11,14 @@ export const FOUNDATION = [
 export const GROUP_FIELDS = ["Diocese", "Region", "Council", "Conference"] as const;
 
 export type GroupField = typeof GROUP_FIELDS[number];
+export type ParentFilterField = "Region" | "Diocese" | "Council";
 export type ReportRow = Record<string, string>;
+export type HierarchyRecord = {
+  conference: string;
+  region: string;
+  diocese: string;
+  council: string;
+};
 export type Metrics = {
   enrolled: number;
   started: number;
@@ -30,6 +37,11 @@ export type Snapshot = {
   metrics: Metrics;
   courses: CourseMetric[];
   groups: Record<GroupField, GroupMetric[]>;
+  hierarchyFilters: {
+    Diocese: Record<string, GroupMetric[]>;
+    Council: Record<string, GroupMetric[]>;
+    Conference: Record<string, GroupMetric[]>;
+  };
 };
 export type MetricChanges = Record<keyof Metrics, number | null>;
 export type DashboardReport = {
@@ -51,6 +63,11 @@ export type DashboardReport = {
 
 const clean = (value: unknown) => String(value ?? "").trim();
 const norm = (value: unknown) => clean(value).replace(/\s+/g, " ").toLowerCase();
+const hierarchyKey = (value: unknown) =>
+  norm(value)
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export const percent = (n: number, d: number) => d ? Math.round((n / d) * 100) : 0;
 export const findHeader = (row: ReportRow, wanted: string) =>
@@ -60,7 +77,7 @@ export const findHeader = (row: ReportRow, wanted: string) =>
 
 const isStarted = (value: unknown) => ["passed", "in-progress", "failed"].includes(norm(value));
 
-export function aggregateRows(rows: ReportRow[]): Snapshot {
+export function aggregateRows(rows: ReportRow[], hierarchyRecords: HierarchyRecord[] = []): Snapshot {
   if (!rows.length) throw new Error("The users report did not contain any data rows.");
 
   const courseKeys = FOUNDATION.map((name, index) =>
@@ -72,7 +89,23 @@ export function aggregateRows(rows: ReportRow[]): Snapshot {
     throw new Error(`Only ${courseKeys.length} of ${FOUNDATION.length} Foundation course columns were found.`);
   }
 
-  const enrolled = rows.filter(row => courseKeys.some(key => clean(row[key]) && norm(row[key]) !== "not-enrolled"));
+  const hierarchyByConference = new Map(
+    hierarchyRecords.map(record => [hierarchyKey(record.conference), record])
+  );
+  const conferenceHeader = findHeader(rows[0], "Conference");
+  const enrolled = rows
+    .filter(row => courseKeys.some(key => clean(row[key]) && norm(row[key]) !== "not-enrolled"))
+    .map(row => {
+      const match = hierarchyByConference.get(hierarchyKey(row[conferenceHeader]));
+      if (!match) return row;
+      return {
+        ...row,
+        [findHeader(rows[0], "Conference") || "Conference"]: match.conference,
+        [findHeader(rows[0], "Region") || "Region"]: match.region,
+        [findHeader(rows[0], "Diocese") || "Diocese"]: match.diocese,
+        [findHeader(rows[0], "Council") || "Council"]: match.council
+      };
+    });
   const stats = (subset: ReportRow[]): Metrics => {
     const started = subset.filter(row => courseKeys.some(key => isStarted(row[key]))).length;
     return {
@@ -90,22 +123,43 @@ export function aggregateRows(rows: ReportRow[]): Snapshot {
     notStarted: subset.filter(row => !isStarted(row[key])).length
   }));
 
-  const groups = Object.fromEntries(GROUP_FIELDS.map(field => {
+  const groupBy = (field: GroupField, subset: ReportRow[]) => {
     const key = findHeader(rows[0], field);
     const grouped = new Map<string, ReportRow[]>();
-    enrolled.forEach(row => {
+    subset.forEach(row => {
       const name = clean(row[key]) || "Not reported";
       grouped.set(name, [...(grouped.get(name) || []), row]);
     });
-    const values = [...grouped].map(([name, subset]) => ({ name, ...stats(subset), courses: courseStats(subset) }))
+    return [...grouped].map(([name, groupRows]) => ({ name, ...stats(groupRows), courses: courseStats(groupRows) }))
       .sort((a, b) => b.enrolled - a.enrolled || a.name.localeCompare(b.name));
-    return [field, values];
-  })) as Record<GroupField, GroupMetric[]>;
+  };
+
+  const groups = Object.fromEntries(GROUP_FIELDS.map(field => [field, groupBy(field, enrolled)])) as Record<GroupField, GroupMetric[]>;
+  const childByParent = (parentField: ParentFilterField, childField: Exclude<GroupField, "Region">) => {
+    const parentKey = findHeader(rows[0], parentField);
+    const parentGroups = new Map<string, ReportRow[]>();
+    enrolled.forEach(row => {
+      const name = clean(row[parentKey]) || "Not reported";
+      parentGroups.set(name, [...(parentGroups.get(name) || []), row]);
+    });
+    const filters = Object.fromEntries(
+      [...parentGroups]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([parentName, parentRows]) => [parentName, groupBy(childField, parentRows)])
+    );
+    return filters;
+  };
+  const hierarchyFilters = {
+    Diocese: childByParent("Region", "Diocese"),
+    Council: childByParent("Diocese", "Council"),
+    Conference: childByParent("Council", "Conference")
+  };
 
   return {
     metrics: stats(enrolled),
     courses: courseStats(enrolled),
-    groups
+    groups,
+    hierarchyFilters
   };
 }
 
@@ -121,7 +175,8 @@ export const PREVIEW: DashboardReport = {
       { name: FOUNDATION[5], passed: 35, progress: 9, notStarted: 545 },
       { name: FOUNDATION[6], passed: 32, progress: 5, notStarted: 552 }
     ],
-    groups: { Diocese: [], Region: [], Council: [], Conference: [] }
+    groups: { Diocese: [], Region: [], Council: [], Conference: [] },
+    hierarchyFilters: { Diocese: {}, Council: {}, Conference: {} }
   },
   previous: null,
   changes: { enrolled: null, started: null, passed1: null, cert: null, noActivity: null },

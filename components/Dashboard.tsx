@@ -9,11 +9,10 @@ import { ExecutiveFacts } from "./dashboard/ExecutiveFacts";
 import { GroupExplorer } from "./dashboard/GroupExplorer";
 import { KpiGrid } from "./dashboard/KpiGrid";
 import { LoginPanel } from "./dashboard/LoginPanel";
-import { PerformanceTable } from "./dashboard/PerformanceTable";
 import { ReportHeader } from "./dashboard/ReportHeader";
 import { SectionTitle } from "./dashboard/SectionTitle";
 import { Watchlist } from "./dashboard/Watchlist";
-import { percent, PREVIEW, type DashboardReport, type GroupField } from "@/lib/report";
+import { percent, PREVIEW, type DashboardReport, type GroupField, type ParentFilterField } from "@/lib/report";
 
 const valueLabelsPlugin = {
   id: "valueLabels",
@@ -70,6 +69,7 @@ const formatDateTime = (value: string) => new Date(value).toLocaleString("en-US"
 export default function Dashboard() {
   const [report, setReport] = useState<DashboardReport>(PREVIEW);
   const [groupField, setGroupField] = useState<GroupField>("Diocese");
+  const [parentFilterValue, setParentFilterValue] = useState("All");
   const [enrollTarget, setEnrollTarget] = useState(1000);
   const [certTarget, setCertTarget] = useState(600);
   const [message, setMessage] = useState("Showing preview data until the latest SkyPrep report loads.");
@@ -80,7 +80,25 @@ export default function Dashboard() {
 
   const metrics = report.current.metrics;
   const courses = report.current.courses;
-  const groups = useMemo(() => report.current.groups[groupField] || [], [report, groupField]);
+  const parentFilterField = useMemo<ParentFilterField | null>(() => {
+    if (groupField === "Diocese") return "Region";
+    if (groupField === "Council") return "Diocese";
+    if (groupField === "Conference") return "Council";
+    return null;
+  }, [groupField]);
+  const parentFilterOptions = useMemo(() => {
+    if (!parentFilterField || groupField === "Region") return [];
+    return Object.keys(report.current.hierarchyFilters[groupField as Exclude<GroupField, "Region">] || {}).sort((a, b) => a.localeCompare(b));
+  }, [groupField, parentFilterField, report]);
+  const groups = useMemo(() => {
+    if (!parentFilterField || parentFilterValue === "All" || groupField === "Region") {
+      return report.current.groups[groupField] || [];
+    }
+    return report.current.hierarchyFilters[groupField as Exclude<GroupField, "Region">]?.[parentFilterValue] || [];
+  }, [groupField, parentFilterField, parentFilterValue, report]);
+  const groupContext = parentFilterField && parentFilterValue !== "All"
+    ? ` within ${parentFilterValue} ${parentFilterField}`
+    : "";
   const risks = [metrics.noActivity, metrics.started - metrics.passed1, metrics.passed1 - metrics.cert];
 
   async function refresh(force = false) {
@@ -115,6 +133,14 @@ export default function Dashboard() {
       else setMessage("Enter the dashboard access code to load live report data.");
     }).catch(() => refresh(false));
   }, []);
+
+  useEffect(() => {
+    if (!parentFilterField) {
+      setParentFilterValue("All");
+      return;
+    }
+    setParentFilterValue(current => current === "All" || parentFilterOptions.includes(current) ? current : "All");
+  }, [parentFilterField, parentFilterOptions]);
 
   const courseOnePassed = courses[0]?.passed || 0;
   const courseSevenPassed = courses[6]?.passed || 0;
@@ -187,7 +213,6 @@ export default function Dashboard() {
       {liveBlocked && <LoginPanel onAuthenticated={() => { setAuthenticated(true); refresh(false); }} />}
 
       <div className="controls">
-        <label className="control">View stats by<select suppressHydrationWarning value={groupField} onChange={event => setGroupField(event.target.value as GroupField)}><option>Diocese</option><option>Region</option><option>Council</option><option>Conference</option></select></label>
         <label className="control">Enrollment target<input suppressHydrationWarning type="number" min="1" value={enrollTarget} onChange={event => setEnrollTarget(Number(event.target.value) || 1)} /></label>
         <label className="control">Certificate target<input suppressHydrationWarning type="number" min="1" value={certTarget} onChange={event => setCertTarget(Number(event.target.value) || 1)} /></label>
         <div className="controlSpacer" />
@@ -214,11 +239,12 @@ export default function Dashboard() {
       <SectionTitle title="Course Pipeline">Status across the seven-course Foundation Track. Attrition makes sequence bottlenecks visible.</SectionTitle>
       <div className="panel courseChart" role="img" aria-label="Stacked bar chart showing passed, in progress, and not started by course."><Bar data={courseData} options={stackedOptions} /></div>
 
-      <SectionTitle title={`${groupField} Performance Explorer`}>Compare how every {groupField} is doing across enrollment, progress, certificates, and course completion.</SectionTitle>
-      <GroupExplorer groupField={groupField} groups={groups} />
-
-      <SectionTitle title={`Performance by ${groupField}`}>Switch among the SkyPrep Region, Diocese, Council, and Conference profile fields.</SectionTitle>
-      <PerformanceTable groupField={groupField} groups={groups} />
+      <SectionTitle title={`${groupField} Performance Explorer`}>Compare how every {groupField}{groupContext} is doing across enrollment, progress, certificates, and course completion.</SectionTitle>
+      <div className="explorerControls">
+        <label className="control">View stats by<select suppressHydrationWarning value={groupField} onChange={event => setGroupField(event.target.value as GroupField)}><option>Diocese</option><option>Region</option><option>Council</option><option>Conference</option></select></label>
+        {parentFilterField && <label className="control">Show {groupField} in {parentFilterField}<select suppressHydrationWarning value={parentFilterValue} onChange={event => setParentFilterValue(event.target.value)}><option>All</option>{parentFilterOptions.map(option => <option key={option} value={option}>{option}</option>)}</select></label>}
+      </div>
+      <GroupExplorer groupField={groupField} groups={groups} context={groupContext} />
 
       <SectionTitle title="Early-Intervention Watchlist">Counts useful for outreach planning. No learner names or email addresses are displayed.</SectionTitle>
       <Watchlist risks={risks} largestDrop={largestDrop} riskData={riskData} />
