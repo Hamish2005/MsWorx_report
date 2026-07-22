@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Housing Stability Institute — Pilot Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14304A; --ink2:#1F4260; --paper:#F2F4F6; --card:#FFFFFF;
+    --amber:#C9962E; --green:#4E7A5A; --slate:#5B6B7A; --darkslate:#33465A; --line:#DDE3E8;
+    --red:#B0453A; --blue:#3E6E96;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); font-family:'Inter',system-ui,sans-serif; color:var(--ink); font-size:14px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px 56px;}
+
+  header{background:var(--ink); color:#EDF1F4; padding:26px 0 22px;}
+  header .wrap{padding-bottom:0;}
+  .mast{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;}
+  .mast h1{font-family:'Fraunces',Georgia,serif; font-weight:650; font-size:27px; letter-spacing:.2px;}
+  .mast .sub{color:#9FB4C6; font-size:13px; margin-top:5px;}
+  .asof{font-size:12px; color:#C6D4DF; text-align:right; line-height:1.5;}
+  .asof b{color:#fff; font-weight:600;}
+
+  .scoregrid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:-1px; padding:18px 0 0;}
+  .score{background:var(--card); border:1px solid var(--line); border-top:3px solid var(--ink); border-radius:6px; padding:16px 18px 14px;}
+  .score.gate{border-top-color:var(--amber);}
+  .score .lbl{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink); font-weight:700;}
+  .score .val{font-family:'Fraunces',Georgia,serif; font-size:34px; font-weight:650; margin-top:6px; line-height:1; color:var(--ink);}
+  .score .val small{font-size:15px; color:var(--darkslate); font-weight:500; font-family:'Inter',sans-serif;}
+  .score .note{font-size:12px; color:var(--darkslate); font-weight:500; margin-top:7px;}
+  .bar{height:6px; background:#E8ECEF; border-radius:3px; margin-top:10px; overflow:hidden;}
+  .bar span{display:block; height:100%; border-radius:3px;}
+
+  h2{font-family:'Fraunces',Georgia,serif; font-weight:650; font-size:19px; margin:34px 0 4px;}
+  .h2sub{color:var(--slate); font-size:13px; margin-bottom:14px;}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:20px;}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .chartbox{position:relative; width:100%;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--slate); text-align:left; padding:8px 10px; border-bottom:2px solid var(--ink);}
+  td{padding:10px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  td.num, th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .mkbar{height:6px; background:#E8ECEF; border-radius:3px; width:120px; display:inline-block; vertical-align:middle;}
+  .mkbar span{display:block; height:100%; border-radius:3px; background:var(--green);}
+  .flag{color:var(--red); font-weight:600;}
+  .tag{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px;}
+  .tag.warn{background:#F6E9D8; color:#8A6417;}
+  .tag.prov{background:#E3EBF2; color:#31567A;}
+
+  .riskgrid{display:grid; grid-template-columns:1.1fr .9fr; gap:14px;}
+  .callout{border-left:4px solid var(--amber); background:#FBF6EC; border-radius:0 6px 6px 0; padding:14px 16px; font-size:13px; line-height:1.55; margin-top:12px;}
+  .callout b{color:#8A6417;}
+
+  footer{margin-top:40px; font-size:12px; color:var(--slate); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;}
+  @media(max-width:860px){ .scoregrid{grid-template-columns:1fr 1fr;} .cols,.riskgrid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="mast">
+      <div>
+        <h1>Housing Stability Institute — Phase One Pilot</h1>
+        <div class="sub">Vincentian University · Implementation Committee Dashboard · Pilot Window July 1 – August 31, 2026</div>
+      </div>
+      <div class="asof">Data as of <b>July 8, 2026</b> · Pilot week <b>2 of 9</b><br>Source: SkyPrep daily export (automated)</div>
+    </div>
+    <div class="scoregrid" id="scores"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <h2>Path to the Gate: Certificate Completers vs. Required Pace</h2>
+  <div class="h2sub">A certificate completer has passed all 7 Foundation Track courses. The amber line is the pace needed to reach the 368-completer minimum by August 31.</div>
+  <div class="panel"><div class="chartbox" style="height:300px"><canvas id="gateChart"></canvas></div></div>
+
+  <h2>Enrollment &amp; Engagement</h2>
+  <div class="h2sub">Enrollment ramp against the 1,000 target, and where the 449 current enrollees sit in the learning funnel.</div>
+  <div class="cols">
+    <div class="panel"><div class="chartbox" style="height:260px"><canvas id="enrollChart"></canvas></div></div>
+    <div class="panel"><div class="chartbox" style="height:260px"><canvas id="funnelChart"></canvas></div></div>
+  </div>
+
+  <h2>Markets vs. Their Gate Minimums</h2>
+  <div class="h2sub">Each market must individually clear its minimum completer count for statistically valid cross-market comparison.</div>
+  <div class="panel">
+    <table id="mkt">
+      <thead><tr>
+        <th>Market</th><th class="num">Enrolled</th><th class="num">Logged In</th><th class="num">Started a Course</th>
+        <th class="num">Certificate Completers</th><th class="num">Gate Minimum</th><th>Progress to Minimum</th><th class="num">Never Logged In</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="callout"><b>Oakland/Alameda assignment is provisional:</b> 89 users were bulk-enrolled July 6 but are not yet tagged in SkyPrep. 81 are identifiable in the data and shown under Oakland above; the remainder will surface once the SkyPrep group hierarchy update is complete. <b>Market Not Reported (90 learners):</b> providing conference/market was optional at signup and no learner follow-up will be conducted. These learners count toward overall pilot totals (enrollment, completers, the 368 gate minimum) but not toward any market's individual minimum, so market rows understate true progress and cross-market comparisons exclude this group.</div>
+  </div>
+
+  <h2>Course Pipeline</h2>
+  <div class="h2sub">Status of all 449 enrolled learners in each of the 7 Foundation Track courses. Course 01 is the entry point; drop-off between courses shows sequence attrition.</div>
+  <div class="panel"><div class="chartbox" style="height:320px"><canvas id="courseChart"></canvas></div></div>
+
+  <h2>Early-Intervention Watchlist</h2>
+  <div class="h2sub">Accounts needing proactive follow-up, per MSWorx's outreach commitment. Bulk-enrolled and self-enrolled non-logins are different populations needing different outreach.</div>
+  <div class="riskgrid">
+    <div class="panel">
+      <div class="chartbox" style="height:230px"><canvas id="neverChart"></canvas></div>
+    </div>
+    <div class="panel" style="font-size:13px; line-height:1.7;">
+      <b style="font-family:'Fraunces',serif; font-size:16px;">This Week's Actions</b>
+      <ul style="margin:10px 0 0 18px;">
+        <li><b>103 self-enrolled users have never logged in</b> — signed up but never returned; export to MSWorx for follow-up.</li>
+        <li><b>72 of ~89 bulk-enrolled Oakland users have not yet logged in</b> — accounts are active in SkyPrep; expected days after upload. Confirm welcome/credentials outreach landed.</li>
+        <li><b>128 logged in but never started a course</b> — candidates for a "getting started" nudge.</li>
+        <li>Complete SkyPrep group tagging for the 89 bulk-enrolled Oakland accounts.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <b>Reading Notes for the Committee.</b> Enrollment target 1,000 · certificate target 600 (60%) · gate minimum 368 completers (95% confidence / 5% margin).
+    "Certificate completer" = all 7 courses passed. Week-1 velocity is expected to lag the pace line while learners work through Course 01;
+    the pace line becomes a meaningful risk signal from week 3 onward. Oakland/Alameda market figures are provisional pending SkyPrep group tagging of the July 6 bulk enrollment.
+    All figures exclude admin/test accounts. Conference/market was optional at signup; "Market Not Reported" learners are included in all pilot-wide totals but excluded from market-level and conference-type breakdowns. Learner identities are pseudonymized; contact-level follow-up lists are maintained separately by the pilot team.
+  </footer>
+</div>
+
+<script>
+const D = {
+ kpi:{enrolled:449,enroll_target:1000,cert:2,cert_min:368,cert_target:600,loggedin:274,started:146,never:175},
+ markets:[
+  {m:"Georgia",enr:83,log:65,start:38,cert:0,min:110,never:18,prov:false},
+  {m:"St. Louis",enr:128,log:102,start:67,cert:1,min:115,never:26,prov:false},
+  {m:"Dallas",enr:57,log:45,start:19,cert:1,min:72,never:12,prov:false},
+  {m:"Oakland/Alameda",enr:91,log:14,start:0,cert:0,min:71,never:77,prov:true},
+  {m:"Market Not Reported",enr:90,log:48,start:22,cert:0,min:0,never:42,prov:false}],
+ courses:[
+  {c:"01 Vincentian Encounter",p:81,i:62,n:306},
+  {c:"02 Recognizing Crisis",p:40,i:13,n:396},
+  {c:"03 Safety Across Settings",p:19,i:12,n:418},
+  {c:"04 Mandatory Reporting",p:15,i:3,n:431},
+  {c:"05 Understanding Housing Crisis",p:6,i:8,n:435},
+  {c:"06 Diversion Conversation",p:3,i:3,n:443},
+  {c:"07 Prevention Toolkit",p:3,i:2,n:444}],
+ enroll:{labels:["May 3","May 17","May 31","Jun 14","Jun 28","Jul 5","Jul 8"],vals:[10,15,20,47,119,318,449]},
+ weeks:["Jul 5","Jul 12","Jul 19","Jul 26","Aug 2","Aug 9","Aug 16","Aug 23","Aug 30"],
+ certActual:[1,2,null,null,null,null,null,null,null],
+ certRequired:[41,82,123,164,204,245,286,327,368]
+};
+
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const INK=css('--ink'), AMBER=css('--amber'), GREEN=css('--green'), SLATE=css('--slate'), RED=css('--red'), BLUE=css('--blue');
+Chart.defaults.font.family="'Inter',sans-serif";
+Chart.defaults.color=SLATE;
+
+const k=D.kpi;
+const tiles=[
+ {gate:true, lbl:"Certificate Completers", val:`${k.cert} <small>/ 368 min · 600 target</small>`,
+  note:"All 7 courses passed", pct:k.cert/k.cert_min, color:AMBER},
+ {gate:true, lbl:"Enrolled", val:`${k.enrolled} <small>/ 1,000 target</small>`,
+  note:`${Math.round(k.enrolled/10)}% of target`, pct:k.enrolled/k.enroll_target, color:INK},
+ {gate:false, lbl:"Logged In at Least Once", val:`${k.loggedin} <small>/ ${k.enrolled}</small>`,
+  note:`${Math.round(100*k.loggedin/k.enrolled)}% of enrollees`, pct:k.loggedin/k.enrolled, color:GREEN},
+ {gate:false, lbl:"Started a Course", val:`${k.started} <small>/ ${k.enrolled}</small>`,
+  note:`${k.never} never logged in`, pct:k.started/k.enrolled, color:BLUE}
+];
+document.getElementById('scores').innerHTML = tiles.map(t=>`
+ <div class="score ${t.gate?'gate':''}">
+   <div class="lbl">${t.lbl}</div>
+   <div class="val">${t.val}</div>
+   <div class="note">${t.note}</div>
+   <div class="bar"><span style="width:${Math.max(1,Math.min(100,t.pct*100))}%;background:${t.color}"></span></div>
+ </div>`).join('');
+
+new Chart(document.getElementById('gateChart'),{
+ type:'line',
+ data:{labels:D.weeks,datasets:[
+  {label:'Required pace to 368',data:D.certRequired,borderColor:AMBER,borderWidth:2.5,borderDash:[7,5],pointRadius:0,tension:0},
+  {label:'Actual completers (cumulative)',data:D.certActual,borderColor:INK,backgroundColor:INK,borderWidth:2.5,pointRadius:4,tension:0,spanGaps:false}
+ ]},
+ options:{maintainAspectRatio:false,
+  plugins:{legend:{position:'bottom',labels:{boxWidth:14,boxHeight:3}}},
+  scales:{y:{beginAtZero:true,suggestedMax:400,grid:{color:'#E8ECEF'},title:{display:true,text:'Certificate Completers'}},
+          x:{grid:{display:false}}}}
+});
+
+new Chart(document.getElementById('enrollChart'),{
+ type:'line',
+ data:{labels:D.enroll.labels,datasets:[
+  {label:'Cumulative enrollment',data:D.enroll.vals,borderColor:BLUE,backgroundColor:'rgba(62,110,150,.10)',fill:true,borderWidth:2.5,pointRadius:3,tension:.25},
+  {label:'Target (1,000)',data:D.enroll.labels.map(()=>1000),borderColor:AMBER,borderDash:[7,5],borderWidth:2,pointRadius:0}
+ ]},
+ options:{maintainAspectRatio:false,
+  plugins:{legend:{position:'bottom',labels:{boxWidth:14,boxHeight:3}},title:{display:true,text:'Enrollment vs. 1,000 Target',color:INK,font:{weight:'600',size:13}}},
+  scales:{y:{beginAtZero:true,suggestedMax:1050,grid:{color:'#E8ECEF'}},x:{grid:{display:false}}}}
+});
+
+new Chart(document.getElementById('funnelChart'),{
+ type:'bar',
+ data:{labels:['Enrolled','Logged in','Started a course','Passed ≥1 course','Certificate (7/7)'],
+  datasets:[{data:[449,274,146,87,2],backgroundColor:[INK,'#33587A',BLUE,GREEN,AMBER],borderRadius:3}]},
+ options:{indexAxis:'y',maintainAspectRatio:false,
+  plugins:{legend:{display:false},title:{display:true,text:'Learner Funnel — All Enrollees',color:INK,font:{weight:'600',size:13}}},
+  scales:{x:{beginAtZero:true,grid:{color:'#E8ECEF'}},y:{grid:{display:false}}}}
+});
+
+document.querySelector('#mkt tbody').innerHTML = D.markets.map(r=>{
+ const pct = r.min? Math.min(100,100*r.cert/r.min) : 0;
+ const unassigned = r.m==='Market Not Reported';
+ return `<tr>
+  <td>${r.m}${unassigned?' <span class="tag prov">optional at signup</span>':''}${r.prov?' <span class="tag prov">provisional</span>':''}</td>
+  <td class="num">${r.enr}</td><td class="num">${r.log}</td><td class="num">${r.start}</td>
+  <td class="num"><b>${r.cert}</b></td>
+  <td class="num">${r.min||'—'}</td>
+  <td>${r.min?`<span class="mkbar"><span style="width:${Math.max(1,pct)}%"></span></span> <span style="font-size:12px;color:var(--slate)">${pct.toFixed(0)}%</span>`:'—'}</td>
+  <td class="num ${r.never>=25?'flag':''}">${r.never}</td>
+ </tr>`}).join('');
+
+new Chart(document.getElementById('courseChart'),{
+ type:'bar',
+ data:{labels:D.courses.map(c=>c.c),datasets:[
+  {label:'Passed',data:D.courses.map(c=>c.p),backgroundColor:GREEN,borderRadius:2},
+  {label:'In progress',data:D.courses.map(c=>c.i),backgroundColor:AMBER,borderRadius:2},
+  {label:'Not started',data:D.courses.map(c=>c.n),backgroundColor:'#D4DCE2',borderRadius:2}
+ ]},
+ options:{indexAxis:'y',maintainAspectRatio:false,
+  plugins:{legend:{position:'bottom',labels:{boxWidth:14,boxHeight:14}}},
+  scales:{x:{stacked:true,grid:{color:'#E8ECEF'}},y:{stacked:true,grid:{display:false}}}}
+});
+
+new Chart(document.getElementById('neverChart'),{
+ type:'bar',
+ data:{labels:D.markets.map(r=>r.m),datasets:[
+  {label:'Bulk-enrolled, not yet logged in',data:D.markets.map(r=>r.m==='Oakland/Alameda'?72:0),backgroundColor:'#D9A94E',borderRadius:3},
+  {label:'Self-enrolled, never returned',data:D.markets.map(r=>r.m==='Oakland/Alameda'?5:r.never),backgroundColor:RED,borderRadius:3}
+ ]},
+ options:{maintainAspectRatio:false,
+  plugins:{legend:{position:'bottom',labels:{boxWidth:14,boxHeight:14}},title:{display:true,text:'Never Logged In, by Market (175 Total)',color:INK,font:{weight:'600',size:13}}},
+  scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'#E8ECEF'}}}}
+});
+</script>
+</body>
+</html>
