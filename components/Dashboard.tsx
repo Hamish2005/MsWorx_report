@@ -6,7 +6,7 @@ import {
 } from "chart.js";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { ExecutiveFacts } from "./dashboard/ExecutiveFacts";
-import { GroupDrilldown } from "./dashboard/GroupDrilldown";
+import { GroupExplorer } from "./dashboard/GroupExplorer";
 import { KpiGrid } from "./dashboard/KpiGrid";
 import { LoginPanel } from "./dashboard/LoginPanel";
 import { PerformanceTable } from "./dashboard/PerformanceTable";
@@ -33,8 +33,16 @@ const valueLabelsPlugin = {
         const position = element.tooltipPosition(true);
         if (position.x === null || position.y === null) return;
         const isDoughnut = (chart.config as { type?: string }).type === "doughnut";
-        ctx.fillStyle = isDoughnut ? "#14304a" : datasetIndex === 2 ? "#14304a" : "#ffffff";
-        ctx.fillText(value.toLocaleString(), position.x, position.y);
+        const label = value.toLocaleString();
+        const width = ctx.measureText(label).width + 10;
+        const height = 18;
+        const chartArea = chart.chartArea;
+        const x = Math.min(Math.max(position.x, chartArea.left + width / 2), chartArea.right - width / 2);
+        const y = Math.min(Math.max(position.y, chartArea.top + height / 2), chartArea.bottom - height / 2);
+        ctx.fillStyle = isDoughnut || datasetIndex === 2 ? "rgba(255,255,255,.86)" : "rgba(20,48,74,.82)";
+        ctx.fillRect(x - width / 2, y - height / 2, width, height);
+        ctx.fillStyle = isDoughnut || datasetIndex === 2 ? "#14304a" : "#ffffff";
+        ctx.fillText(label, x, y);
       });
     });
     ctx.restore();
@@ -62,7 +70,6 @@ const formatDateTime = (value: string) => new Date(value).toLocaleString("en-US"
 export default function Dashboard() {
   const [report, setReport] = useState<DashboardReport>(PREVIEW);
   const [groupField, setGroupField] = useState<GroupField>("Diocese");
-  const [selectedGroupName, setSelectedGroupName] = useState("");
   const [enrollTarget, setEnrollTarget] = useState(1000);
   const [certTarget, setCertTarget] = useState(600);
   const [message, setMessage] = useState("Showing preview data until the latest SkyPrep report loads.");
@@ -74,10 +81,6 @@ export default function Dashboard() {
   const metrics = report.current.metrics;
   const courses = report.current.courses;
   const groups = useMemo(() => report.current.groups[groupField] || [], [report, groupField]);
-  const selectedGroup = useMemo(
-    () => groups.find(group => group.name === selectedGroupName) || groups[0] || null,
-    [groups, selectedGroupName]
-  );
   const risks = [metrics.noActivity, metrics.started - metrics.passed1, metrics.passed1 - metrics.cert];
 
   async function refresh(force = false) {
@@ -113,10 +116,6 @@ export default function Dashboard() {
     }).catch(() => refresh(false));
   }, []);
 
-  useEffect(() => {
-    setSelectedGroupName(groups[0]?.name || "");
-  }, [groupField, groups]);
-
   const courseOnePassed = courses[0]?.passed || 0;
   const courseSevenPassed = courses[6]?.passed || 0;
   const courseDrops = courses.slice(0, -1).map((course, index) => ({
@@ -149,14 +148,6 @@ export default function Dashboard() {
       { label: "Passed", data: courses.map(course => course.passed), backgroundColor: COLORS.green, borderRadius: 2 },
       { label: "In progress", data: courses.map(course => course.progress), backgroundColor: COLORS.amber, borderRadius: 2 },
       { label: "Not started", data: courses.map(course => course.notStarted), backgroundColor: "#d4dce2", borderRadius: 2 }
-    ]
-  };
-  const selectedGroupCourseData = {
-    labels: (selectedGroup?.courses || []).map(course => course.name.replace(/^\d+\s*\|\s*/, "")),
-    datasets: [
-      { label: "Passed", data: (selectedGroup?.courses || []).map(course => course.passed), backgroundColor: COLORS.green, borderRadius: 2 },
-      { label: "In progress", data: (selectedGroup?.courses || []).map(course => course.progress), backgroundColor: COLORS.amber, borderRadius: 2 },
-      { label: "Not started", data: (selectedGroup?.courses || []).map(course => course.notStarted), backgroundColor: "#d4dce2", borderRadius: 2 }
     ]
   };
   const riskData = {
@@ -200,7 +191,7 @@ export default function Dashboard() {
         <label className="control">Enrollment target<input suppressHydrationWarning type="number" min="1" value={enrollTarget} onChange={event => setEnrollTarget(Number(event.target.value) || 1)} /></label>
         <label className="control">Certificate target<input suppressHydrationWarning type="number" min="1" value={certTarget} onChange={event => setCertTarget(Number(event.target.value) || 1)} /></label>
         <div className="controlSpacer" />
-        <div className="status">{report.source.usersReportId === "preview" ? "Preview data" : "Live data"} · {metrics.enrolled.toLocaleString()} learners</div>
+        <div className="status">{report.source.usersReportId === "preview" ? "Preview data" : "Live data"} - {metrics.enrolled.toLocaleString()} learners</div>
       </div>
 
       <KpiGrid metrics={metrics} changes={report.changes} enrollTarget={enrollTarget} certTarget={certTarget} />
@@ -223,14 +214,8 @@ export default function Dashboard() {
       <SectionTitle title="Course Pipeline">Status across the seven-course Foundation Track. Attrition makes sequence bottlenecks visible.</SectionTitle>
       <div className="panel courseChart" role="img" aria-label="Stacked bar chart showing passed, in progress, and not started by course."><Bar data={courseData} options={stackedOptions} /></div>
 
-      <SectionTitle title={`${groupField} Drilldown`}>Select a specific {groupField} to review its enrollment, progress, certificate outcomes, and course pipeline.</SectionTitle>
-      <GroupDrilldown
-        groupField={groupField}
-        selectedGroup={selectedGroup}
-        onSelectedGroupChange={setSelectedGroupName}
-        groups={groups}
-        courseData={selectedGroupCourseData}
-      />
+      <SectionTitle title={`${groupField} Performance Explorer`}>Compare how every {groupField} is doing across enrollment, progress, certificates, and course completion.</SectionTitle>
+      <GroupExplorer groupField={groupField} groups={groups} />
 
       <SectionTitle title={`Performance by ${groupField}`}>Switch among the SkyPrep Region, Diocese, Council, and Conference profile fields.</SectionTitle>
       <PerformanceTable groupField={groupField} groups={groups} />

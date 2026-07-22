@@ -62,7 +62,7 @@ export function PerformanceTable({ groupField, groups }: { groupField: GroupFiel
                 aria-sort={sortKey === column.key ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}
               >
                 {column.key === "name" ? groupField : column.label}
-                <span aria-hidden="true">{sortKey === column.key ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</span>
+                <span aria-hidden="true">{sortKey === column.key ? (sortDirection === "asc" ? "^" : "v") : "-"}</span>
               </button>
             </th>)}
           </tr>
@@ -86,4 +86,3 @@ export function PerformanceTable({ groupField, groups }: { groupField: GroupFiel
     <div className="callout"><b>Data-quality note:</b> {missing ? `${missing.enrolled} learners have no ${groupField} value. ` : `No blank ${groupField} values were found. `}{groups.length > 15 ? `The first 15 of ${groups.length} groups are shown using the current sort.` : "All groups are shown."}</div>
   </div>;
 }
-
