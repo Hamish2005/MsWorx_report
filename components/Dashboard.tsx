@@ -11,6 +11,7 @@ import { KpiGrid } from "./dashboard/KpiGrid";
 import { LoginPanel } from "./dashboard/LoginPanel";
 import { ReportHeader } from "./dashboard/ReportHeader";
 import { SectionTitle } from "./dashboard/SectionTitle";
+import { SignalSummary } from "./dashboard/SignalSummary";
 import { Watchlist } from "./dashboard/Watchlist";
 import { percent, PREVIEW, type DashboardReport, type GroupField, type ParentFilterField } from "@/lib/report";
 
@@ -68,7 +69,7 @@ const formatDateTime = (value: string) => new Date(value).toLocaleString("en-US"
 
 export default function Dashboard() {
   const [report, setReport] = useState<DashboardReport>(PREVIEW);
-  const [groupField, setGroupField] = useState<GroupField>("Diocese");
+  const [groupField, setGroupField] = useState<GroupField>("Region");
   const [parentFilterValue, setParentFilterValue] = useState("All");
   const [enrollTarget, setEnrollTarget] = useState(1000);
   const [certTarget, setCertTarget] = useState(600);
@@ -241,10 +242,24 @@ export default function Dashboard() {
 
       <SectionTitle title={`${groupField} Performance Explorer`}>Compare how every {groupField}{groupContext} is doing across enrollment, progress, certificates, and course completion.</SectionTitle>
       <div className="explorerControls">
-        <label className="control">View stats by<select suppressHydrationWarning value={groupField} onChange={event => setGroupField(event.target.value as GroupField)}><option>Diocese</option><option>Region</option><option>Council</option><option>Conference</option></select></label>
+        <div className="control controlWide">
+          <span>View stats by</span>
+          <div className="segmented" role="group" aria-label="View stats by">
+            {(["Region", "Diocese", "Council", "Conference"] as GroupField[]).map(option => <button
+              suppressHydrationWarning
+              className={groupField === option ? "active" : ""}
+              key={option}
+              type="button"
+              onClick={() => setGroupField(option)}
+            >
+              {option}
+            </button>)}
+          </div>
+        </div>
         {parentFilterField && <label className="control">Show {groupField} in {parentFilterField}<select suppressHydrationWarning value={parentFilterValue} onChange={event => setParentFilterValue(event.target.value)}><option>All</option>{parentFilterOptions.map(option => <option key={option} value={option}>{option}</option>)}</select></label>}
       </div>
       <GroupExplorer groupField={groupField} groups={groups} context={groupContext} />
+      <SignalSummary metrics={metrics} groups={groups} groupField={groupField} context={groupContext} />
 
       <SectionTitle title="Early-Intervention Watchlist">Counts useful for outreach planning. No learner names or email addresses are displayed.</SectionTitle>
       <Watchlist risks={risks} largestDrop={largestDrop} riskData={riskData} />
